@@ -5,7 +5,17 @@ import xml.XML
 class XmlContext(sc: StringContext) {
   def xml(args: Any*) = {
     sc.checkLengths(args)
-    XML.loadString(sc.parts.head + args.zip(sc.parts.tail).foldLeft("")((x, y) => x + y._1 + y._2))
+    XML.loadString(
+      args.zip(sc.parts).foldLeft("")
+        ((x, y) => {
+          if (y._2.endsWith("=") && (x + y._2).count(p => p.equals('<') || p.equals('>')) % 2 != 0) {
+            x + y._2 + "\"" + y._1 + "\""
+          } else {
+            x + y._2 + y._1
+          }
+        })
+        + sc.parts.apply(sc.parts.length - 1)
+    )
   }
 }
 
@@ -13,10 +23,11 @@ object Main extends App {
 
   implicit def stringContextToXmlContext(sc: StringContext) = new XmlContext(sc)
 
-  val title = "Some text"
-  val body = 5555
-  val someXmlBlock = <innerBlock size ="100500">00000</innerBlock>
-  println(xml"<html><tile>$title</tile><body>$body $someXmlBlock</body></html>")
-  println(xml"<sdfsdf<html><tile>$title</tile><body>$body</body></html>")
-
+  val V1 = 1
+  val V2 = 2
+  val V3 = 3
+  val V4 = 4
+  println( xml"""<html><testParameter par1=$V1 par2=$V2 par3=$V3 par4=$V4 /><body>There is no quote=$V1</body></html>""")
+  val xs = List(1, 2, 3, 4, 5)
+  println( xml"""<for>${(for (x <- xs) yield xml"""<bar x=$x/>""").foldLeft("")((x, y) => x + y)}</for>""")
 }
