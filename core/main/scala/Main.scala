@@ -1,3 +1,5 @@
+package main
+
 import scala.reflect.runtime.universe._
 import language.experimental.macros
 
@@ -10,5 +12,7 @@ object Main extends App {
   val V3 = "5"
   val V4 = "444"
 
-  println( xml"""<html><testParameter par1="$V1" par2="$V2" par3="$V3" par4="$V4" /><body>There is no quote=$V1</body></html>""")
+  println( xml"<html>$V1</html>" )
+  println( xml"""<html><testParameter par1="$V1"/><body>There is no quote=$V1</body></html>""")
+  println( xml"""<html><testParameter error par1="$V1" par2="$V2" par3="$V3" par4="$V4" /><body>There is no quote=$V1</body></html>""")
 }

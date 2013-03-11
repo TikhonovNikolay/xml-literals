@@ -2,53 +2,59 @@ import language.experimental.macros
 import reflect.macros._
 import xml.XML
 
-class XmlContext(sc: StringContext) {
-
-  val strContext = sc.parts
-
-  def xml(args: Any) = macro MacrosXml.xml_impl
-
+class XmlContext(val sc: StringContext) {
+  def xml(args: Any*) = macro MacrosXml.xml_impl
 }
 
 object MacrosXml {
 
-  def xml_impl(c: Context)(args: c.Expr[Any]) : c.Expr[Any] = {
+  def validateXml(c: Context, xmlPart: Seq[String]) = {
+    try {
+      XML.loadString(xmlPart.mkString)
+    } catch {
+      case e: org.xml.sax.SAXParseException => {
+        c.error(
+          c.enclosingPosition.withPoint(c.enclosingPosition.point + e.getColumnNumber + 3),
+          e.getMessage
+        )
+      }
+    }
+  }
+
+  def xml_impl(c: Context)(args: c.Expr[Any]*): c.Expr[Any] = {
 
     import c.universe._
 
-    def getListLiteral(tr: Tree): Seq[Any] = tr match {
-      case Apply(x, y) => {
-        y match {
-          case List(tree: Tree) => getListLiteral(tree)
-          case _ => y
-        }
+    val xmlConstantPart = c.prefix.tree match {
+      case Apply(_, List(Apply(_, stringLiteralConstant: List[Tree]))) => stringLiteralConstant.collect {
+        case Literal(Constant(str: String)) => str
       }
+      case _ => c.error(c.enclosingPosition, "Invalid call XML macros")
     }
 
-    val xmlSemantic = getListLiteral(c.prefix.tree).map(
-      x => {
-        val Literal(Constant(str: String)) = x
-        str
-      }
-    )
+    validateXml(c, xmlConstantPart.asInstanceOf[Seq[String]])
 
-    try {
-      XML.loadString(xmlSemantic.foldLeft("")((x, y) => x + y))
-    } catch {
-      case e: org.xml.sax.SAXParseException => {
-        c.error(c.enclosingPosition, e.getMessage)
-      }
+    val exprForStringLiterals =
+      c.Expr(
+        Apply(
+          Ident(newTermName("List")),
+          xmlConstantPart.asInstanceOf[Seq[String]].collect{case s: String => Literal(Constant(s))}.asInstanceOf[List[Tree]]
+        )
+      )
+
+    val treeForListParameters =
+      c.Expr(
+        Apply(
+          Ident(newTermName("List")),
+          args.collect{case e: Expr[Any] => e.tree}.asInstanceOf[List[Tree]]
+        )
+      )
+
+    reify {
+      XML.loadString(
+        exprForStringLiterals.splice.asInstanceOf[List[String]].zip(treeForListParameters.splice.asInstanceOf[List[Any]]).foldLeft("") {(x, y) => x + y._1 + y._2}
+          + exprForStringLiterals.splice.asInstanceOf[List[String]](exprForStringLiterals.splice.asInstanceOf[List[String]].size - 1)
+      )
     }
-
-    c.Expr(
-      Apply(Select(Select(Select(Ident(newTermName("scala")), newTermName("xml")), newTermName("XML")), newTermName("loadString")),
-        List(Apply(Select(Apply(Apply(Select(Apply(Apply(Select(Ident(newTermName("args")), newTermName("zip")), List(Select(c.prefix.tree,
-          newTermName("strContext")))), List(Select(reify(scala.collection.Seq).tree, newTermName("canBuildFrom")))),
-          newTermName("foldLeft")), List(Literal(Constant("")))), List(Function(List(ValDef(Modifiers(Flag.PARAM), newTermName("x"), TypeTree(),
-          EmptyTree), ValDef(Modifiers(Flag.PARAM), newTermName("y"), TypeTree(), EmptyTree)), Apply(Select(Apply(Select(Ident(newTermName("x")),
-          newTermName("$plus")), List(Select(Ident(newTermName("y")), newTermName("_2")))), newTermName("$plus")), List(Select(Ident(newTermName("y")),
-          newTermName("_1"))))))), newTermName("$plus")), List(Apply(Select(Select(c.prefix.tree, newTermName("strContext")), newTermName("apply")),
-          List(Apply(Select(Select(Select(c.prefix.tree, newTermName("strContext")), newTermName("length")), newTermName("$minus")), List(Literal(Constant(1))))))))))
-    )
   }
 }
