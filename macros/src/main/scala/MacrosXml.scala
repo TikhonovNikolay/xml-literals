@@ -8,6 +8,25 @@ class XmlContext(val sc: StringContext) {
 
 object MacrosXml {
 
+  def calculateInner(str: String, inner: Boolean): Boolean = str match {
+    case "" => inner
+    case _ if (str.startsWith(">") && inner) => calculateInner(str.substring(1), false)
+    case _ if (str.startsWith("<") && !inner) => calculateInner(str.substring(1), true)
+    case _ => calculateInner(str.substring(1), inner)
+  }
+
+  def attributeQuotes(xmlParts: List[String], xmlScreen: List[String], inner: Boolean, next: Boolean): List[String] = xmlParts match {
+    case h :: t => {
+      val in = calculateInner(h, inner)
+      if (in && h.endsWith("=")) {
+        attributeQuotes(t, xmlScreen :+ (if (next) "\"" else "") + h + "\"", true, true)
+      } else {
+        attributeQuotes(t, xmlScreen :+ (if (next) "\"" else "") + h, in, false)
+      }
+    }
+    case Nil => xmlScreen
+  }
+
   def validateXml(c: Context, xmlPart: Seq[String]) = {
     try {
       XML.loadString(xmlPart.mkString)
@@ -32,13 +51,15 @@ object MacrosXml {
       case _ => c.error(c.enclosingPosition, "Invalid call XML macros")
     }
 
-    validateXml(c, xmlConstantPart.asInstanceOf[Seq[String]])
+    val xmlConstantPartWithQuotesAttribution = attributeQuotes(List(xmlConstantPart.asInstanceOf[Seq[String]]: _*), List(), false, false)
+
+    validateXml(c, xmlConstantPartWithQuotesAttribution)
 
     val exprForStringLiterals =
       c.Expr(
         Apply(
           Ident(newTermName("List")),
-          xmlConstantPart.asInstanceOf[Seq[String]].collect{case s: String => Literal(Constant(s))}.asInstanceOf[List[Tree]]
+          xmlConstantPartWithQuotesAttribution.collect{case s: String => Literal(Constant(s))}.asInstanceOf[List[Tree]]
         )
       )
 
