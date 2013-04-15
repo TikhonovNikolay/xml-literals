@@ -1,3 +1,0 @@
-error: Open quote is expected for attribute "{1}" associated with an  element type  "bar".
-  xml"<foo bar = 1></foo>"
-               ^

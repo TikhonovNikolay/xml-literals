@@ -1,3 +1,0 @@
-error: Content is not allowed in trailing section.
-  xml"<foo></foo>>"
-                 ^
