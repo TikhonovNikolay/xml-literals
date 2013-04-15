@@ -1,0 +1,3 @@
+.\Main.scala:11: error: Open quote is expected for attribute "{1}" associated with an  element type  "bar1".
+  val x = xml"<foo bar=$V1 bar1=V1 />"
+                               ^

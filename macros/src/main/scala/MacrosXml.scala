@@ -8,9 +8,7 @@ class XmlContext(val sc: StringContext) {
 
 class ValidateXml(val c: Context) {
 
-  import c.universe._
-
-  def calculationErrorPosition(e: org.xml.sax.SAXParseException, xmlPart: Seq[String], sourceXmlPartTree: List[Tree]) = {
+  def calculationErrorPosition(e: org.xml.sax.SAXParseException, xmlPart: Seq[String], sourceXmlPartTree: List[c.universe.Tree]) = {
 
     def findPartWithError(xmlPart: Seq[String], length: Int, number: Int): Int = xmlPart match {
       case h :: t =>
@@ -20,14 +18,14 @@ class ValidateXml(val c: Context) {
           findPartWithError(t, h.length + length, number + 1)
         }
       case Nil => {
-        c.error(sourceXmlPartTree.apply(sourceXmlPartTree.size - 1).pos, "Invalid xml")
-        throw new RuntimeException("Invalid xml")
+        c.error(sourceXmlPartTree.apply(sourceXmlPartTree.size - 1).pos, "Invalid macro call")
+        throw new RuntimeException("Invalid macro call")
       }
     }
 
     val indexOfInvalidPart = findPartWithError(xmlPart, 0, 0)
 
-    val Literal(Constant(sourceString: String)) = sourceXmlPartTree(indexOfInvalidPart)
+    val c.universe.Literal(c.universe.Constant(sourceString: String)) = sourceXmlPartTree(indexOfInvalidPart)
 
     (xmlPart(indexOfInvalidPart).length == sourceString.length) match {
       case true => sourceXmlPartTree(indexOfInvalidPart).pos
@@ -42,7 +40,7 @@ class ValidateXml(val c: Context) {
     }
   }
 
-  def validate(c: Context, xmlPart: Seq[String], sourceXmlPartTree: List[Tree]) = {
+  def validate(xmlPart: Seq[String], sourceXmlPartTree: List[c.universe.Tree]) : Unit = {
     try {
       XML.loadString(xmlPart.mkString)
     } catch {
@@ -83,7 +81,7 @@ object MacrosXml {
 
     val xmlConstantPartTree = (c.prefix.tree match {
       case Apply(_, List(Apply(_, stringLiteralConstant: List[Tree]))) => stringLiteralConstant
-      case _ => c.error(c.enclosingPosition, "Invalid call XML macros")
+      case _ => c.error(c.enclosingPosition, "Invalid macro call")
     }).asInstanceOf[List[Tree]]
 
     val xmlConstantPart = xmlConstantPartTree.collect {
@@ -93,12 +91,12 @@ object MacrosXml {
     val xmlConstantPartWithQuotesAttribution = attributeQuotes(List(xmlConstantPart.asInstanceOf[Seq[String]]: _*), List(), false, false)
 
     val utilValidate = new ValidateXml(c)
-    utilValidate.validate(c, xmlConstantPartWithQuotesAttribution, xmlConstantPartTree.asInstanceOf)
+    utilValidate.validate(xmlConstantPartWithQuotesAttribution, xmlConstantPartTree.asInstanceOf[List[utilValidate.c.universe.Tree]])
 
     val exprForStringLiterals =
       c.Expr(
         Apply(
-          Ident(newTermName("List")),
+          Ident(TermName("List")),
           xmlConstantPartWithQuotesAttribution.collect {
             case s: String => Literal(Constant(s))
           }.asInstanceOf[List[Tree]]
@@ -108,7 +106,7 @@ object MacrosXml {
     val treeForListParameters =
       c.Expr(
         Apply(
-          Ident(newTermName("List")),
+          Ident(TermName("List")),
           args.collect {
             case e: Expr[Any] => e.tree
           }.asInstanceOf[List[Tree]]
